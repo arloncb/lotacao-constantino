@@ -9,8 +9,6 @@ st.set_page_config(page_title="Lotação 2026", layout="wide")
 SHEET_URL = "https://docs.google.com/spreadsheets/d/10nQG6fYwRKMbgxAGVOl8Ko8DHjCTt4jPnuGZ1pTqWac/edit?usp=sharing"
 
 # Configuração da conexão com o Google Sheets via gspread usando os Secrets
-@st.cache_resource
-py = None
 def conectar_gsheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_dict = dict(st.secrets["connections"]["gsheets"])
@@ -41,7 +39,7 @@ lista_turnos = ["Matutino", "Vespertino", "Noturno", "Integral"]
 
 # Função para carregar os dados da Página1
 @st.cache_data(ttl=5)
-py_carregar_dados():
+def carregar_dados():
     try:
         client = conectar_gsheets()
         sheet = client.open_by_url(SHEET_URL)
@@ -152,12 +150,10 @@ if st.button("💾 Salvar Alterações na Planilha do Google", type="primary"):
         sheet = client.open_by_url(SHEET_URL)
         worksheet = sheet.worksheet("Página1")
         
-        # Limpa e atualiza a planilha com os novos dados editados
         worksheet.clear()
         dados_para_salvar = [df_editado.columns.values.tolist()] + df_editado.fillna("").values.tolist()
         worksheet.update(dados_para_salvar)
         
-        # Limpa o cache para recarregar os dados novos atualizados
         st.cache_data.clear()
         st.success("Dados salvos e sincronizados com sucesso na Página1 do Google Sheets!")
         st.rerun()
