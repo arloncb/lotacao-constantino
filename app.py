@@ -1,22 +1,43 @@
 import streamlit as st
 import pandas as pd
 
+# Configuração da página para ocupar a tela toda
 st.set_page_config(page_title="Lotação 2026", layout="wide")
 
 st.title("📊 Matriz de Lotação de Professores (as)")
-st.markdown("Preencha a Carga Horária (CH) e digite ou selecione o nome do Professor (a) correspondente para cada disciplina.")
+st.markdown("Preencha a Carga Horária (CH) e digite ou selecione o nome do professor (a) correspondente para cada disciplina.")
 
 # 1. Definição das Disciplinas e Turmas
 disciplinas = [
-    "Apoio e Orien. de estudos", "Arte", "Biologia", "Ciências", 
-    "Ciências Human. e Socie.", "Ciências naturais na Contemporaneidade", 
-    "Desenvol. Local", "Ed. Física", "Empresa Pedagógica", "Filosofia", 
-    "Física", "Geografia", "História", "Investigação Cien. e Tec.", 
-    "Leitura (literatura) e Prod. Textual", "Letram. e rac. Matemático", 
-    "Língua Inglesa", "Língua Portuguesa", "Língua Portuguesa - RA", 
-    "Literatura Arte e Movimento", "Matemática", "Matemática Geometria", 
-    "Matemática-RA", "Química", "Sociologia", "Tecnologia e Cida Digi.", 
-    "UC PROFISSIONAL 01", "UC PROFISSIONAL 02", "UC PROFISSIONAL 03"
+    "Apoio e Orien. de estudos", 
+    "Arte", 
+    "Biologia", 
+    "Ciências", 
+    "Ciências Human. e Socie.", 
+    "Ciências naturais na Contemporaneidade", 
+    "Desenvol. Local", 
+    "Ed. Física", 
+    "Empresa Pedagógica", 
+    "Filosofia", 
+    "Física", 
+    "Geografia", 
+    "História", 
+    "Investigação Cien. e Tec.", 
+    "Leitura (literatura) e Prod. Textual", 
+    "Letram. e rac. Matemático", 
+    "Língua Inglesa", 
+    "Língua Portuguesa", 
+    "Língua Portuguesa - RA", 
+    "Literatura Arte e Movimento", 
+    "Matemática", 
+    "Matemática Geometria", 
+    "Matemática-RA", 
+    "Química", 
+    "Sociologia", 
+    "Tecnologia e Cida Digi.", 
+    "UC PROFISSIONAL 01", 
+    "UC PROFISSIONAL 02", 
+    "UC PROFISSIONAL 03"
 ]
 
 turmas_ef1 = ["4° A", "5° A"]
@@ -49,10 +70,10 @@ def gerar_config_colunas(turmas):
         "Disciplina": st.column_config.TextColumn("Disciplina", disabled=True)
     }
     for t in turmas:
-        # Configura as colunas de CH para aceitarem apenas números
-        config[f"{t} - CH"] = st.column_config.NumberColumn("CH", min_value=0, max_value=40, step=1)
-        # Configura as colunas de Professores (as) para texto livre
-        config[f"{t} - Prof (a)"] = st.column_config.TextColumn("Professor (a)")
+        # Configura as colunas de CH para aceitarem apenas números, agora exibindo a turma
+        config[f"{t} - CH"] = st.column_config.NumberColumn(f"{t} - CH", min_value=0, max_value=40, step=1)
+        # Configura as colunas de Professores (as) para texto livre, agora exibindo a turma
+        config[f"{t} - Prof (a)"] = st.column_config.TextColumn(f"{t} - Prof (a)")
     return config
 
 # 5. Interface com Abas (Tabs) para separar os níveis de ensino
