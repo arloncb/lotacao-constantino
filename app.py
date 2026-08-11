@@ -1,12 +1,22 @@
 import streamlit as st
 import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
 
 # Configuração da página
 st.set_page_config(page_title="Lotação 2026", layout="wide")
 
-# Conexão com o Google Sheets
-conn = st.connection("gsheets", type="GSheetsConnection")
 SHEET_URL = "https://docs.google.com/spreadsheets/d/10nQG6fYwRKMbgxAGVOl8Ko8DHjCTt4jPnuGZ1pTqWac/edit?usp=sharing"
+
+# Configuração da conexão com o Google Sheets via gspread usando os Secrets
+@st.cache_resource
+py = None
+def conectar_gsheets():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds_dict = dict(st.secrets["connections"]["gsheets"])
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    client = gspread.authorize(creds)
+    return client
 
 # Listas padrão para validação nos menus suspensos
 lista_disciplinas = [
@@ -29,20 +39,28 @@ lista_turmas = [
 
 lista_turnos = ["Matutino", "Vespertino", "Noturno", "Integral"]
 
-# 1. Leitura dos dados da Página1 do Google Sheets
-try:
-    df_dados = conn.read(spreadsheet=SHEET_URL, worksheet="Página1", ttl=5)
-    # Se a planilha estiver vazia, criamos um DataFrame modelo com as colunas pedidas
-    if df_dados.empty or "PROFESSOR(A)" not in df_dados.columns:
-        df_dados = pd.DataFrame(columns=["PROFESSOR(A)", "DISCIPLINA", "CARGA HORÁRIA", "TURMA", "TURNO"])
-except Exception:
-    df_dados = pd.DataFrame(columns=["PROFESSOR(A)", "DISCIPLINA", "CARGA HORÁRIA", "TURMA", "TURNO"])
+# Função para carregar os dados da Página1
+@st.cache_data(ttl=5)
+py_carregar_dados():
+    try:
+        client = conectar_gsheets()
+        sheet = client.open_by_url(SHEET_URL)
+        worksheet = sheet.worksheet("Página1")
+        dados = worksheet.get_all_records()
+        if not dados:
+            return pd.DataFrame(columns=["PROFESSOR(A)", "DISCIPLINA", "CARGA HORÁRIA", "TURMA", "TURNO"])
+        return pd.DataFrame(dados)
+    except Exception as e:
+        st.error(f"Erro ao carregar dados da planilha: {e}")
+        return pd.DataFrame(columns=["PROFESSOR(A)", "DISCIPLINA", "CARGA HORÁRIA", "TURMA", "TURNO"])
+
+df_dados = carregar_dados()
 
 # Inicializa tabela de controle de CH na sessão caso não exista
 if "professores_ch" not in st.session_state:
     st.session_state["professores_ch"] = pd.DataFrame(columns=["Professor (a)", "CH Total"])
 
-# Função para calcular o total de horas alocadas por professor com base na tabela da Página1
+# Função para calcular o total de horas alocadas por professor
 def calcular_horas_atribuidas(df):
     alocadas = {}
     if not df.empty and "PROFESSOR(A)" in df.columns and "CARGA HORÁRIA" in df.columns:
@@ -53,7 +71,7 @@ def calcular_horas_atribuidas(df):
                 alocadas[prof] = alocadas.get(prof, 0) + ch
     return alocadas
 
-# 2. Painel Lateral para o Controle de Carga Horária Total
+# Painel Lateral para o Controle de Carga Horária Total
 with st.sidebar:
     st.header("👨‍🏫 Controle de CH Total")
     st.markdown("Cadastre a carga horária total contratada de cada professor(a):")
@@ -105,9 +123,9 @@ with st.sidebar:
     else:
         st.info("Cadastre os professores acima para ver o balanço.")
 
-# 3. Área Principal: Tabela de Lotação (Página1)
+# Área Principal: Tabela de Lotação (Página1)
 st.title("📋 Sistema de Lotação - Página1")
-st.markdown("Adicione ou edite os lançamentos de lotação diretamente na tabela abaixo. Clique no botão ao final para salvar as alterações na planilha.")
+st.markdown("Adicione ou edite os lançamentos de lotação diretamente na tabela abaixo. Clique no botão para salvar na planilha.")
 
 configuracao_colunas = {
     "PROFESSOR(A)": st.column_config.TextColumn("PROFESSOR(A)", required=True),
@@ -117,7 +135,6 @@ configuracao_colunas = {
     "TURNO": st.column_config.SelectboxColumn("TURNO", options=lista_turnos, required=True)
 }
 
-# Exibe a planilha editável integrada
 df_editado = st.data_editor(
     df_dados,
     column_config=configuracao_colunas,
@@ -128,10 +145,21 @@ df_editado = st.data_editor(
     key="editor_lotacao"
 )
 
-# Botão de Sincronização com o Google Sheets
+# Botão para salvar alterações de volta na Planilha do Google
 if st.button("💾 Salvar Alterações na Planilha do Google", type="primary"):
     try:
-        conn.update(spreadsheet=SHEET_URL, worksheet="Página1", data=df_editado)
+        client = conectar_gsheets()
+        sheet = client.open_by_url(SHEET_URL)
+        worksheet = sheet.worksheet("Página1")
+        
+        # Limpa e atualiza a planilha com os novos dados editados
+        worksheet.clear()
+        dados_para_salvar = [df_editado.columns.values.tolist()] + df_editado.fillna("").values.tolist()
+        worksheet.update(dados_para_salvar)
+        
+        # Limpa o cache para recarregar os dados novos atualizados
+        st.cache_data.clear()
         st.success("Dados salvos e sincronizados com sucesso na Página1 do Google Sheets!")
+        st.rerun()
     except Exception as e:
         st.error(f"Erro ao salvar na planilha: {e}")
