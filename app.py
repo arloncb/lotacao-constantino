@@ -1,16 +1,14 @@
 import streamlit as st
 import pandas as pd
 
-# Configuração da página para ocupar a tela toda
+# Configuração da página
 st.set_page_config(page_title="Lotação 2026", layout="wide")
 
-# 1. Conexão com o Google Sheets via st.connection
+# Conexão com o Google Sheets usando o método nativo seguro do Streamlit
 conn = st.connection("gsheets", type="GSheetsConnection")
 
-# URL da planilha do Google Sheets
 SHEET_URL = "https://docs.google.com/spreadsheets/d/10nQG6fYwRKMbgxAGVOl8Ko8DHjCTt4jPnuGZ1pTqWac/edit?usp=sharing"
 
-# 2. Definição das Disciplinas e Turmas
 disciplinas = [
     "Apoio e Orien. de estudos", "Arte", "Biologia", "Ciências", 
     "Ciências Human. e Socie.", "Ciências naturais na Contemporaneidade", 
@@ -45,7 +43,7 @@ def gerar_config_colunas(turmas):
         config[f"{t} - Prof (a)"] = st.column_config.TextColumn(f"{t} - Prof (a)")
     return config
 
-# 3. Leitura dos dados do Google Sheets (Aba EF1 como base de exemplo principal)
+# Leitura segura da aba EF1
 try:
     df_carregado = conn.read(spreadsheet=SHEET_URL, worksheet="EF1", ttl=5)
     if df_carregado.empty or "Disciplina" not in df_carregado.columns:
@@ -55,7 +53,6 @@ try:
 except Exception:
     df_ef1 = criar_df_matriz(turmas_ef1)
 
-# Inicialização das demais estruturas na sessão
 if "matriz_ef2" not in st.session_state:
     st.session_state["matriz_ef2"] = criar_df_matriz(turmas_ef2)
 if "matriz_em" not in st.session_state:
@@ -63,7 +60,6 @@ if "matriz_em" not in st.session_state:
 if "professores" not in st.session_state:
     st.session_state["professores"] = pd.DataFrame(columns=["Professor (a)", "CH Total"])
 
-# Função para calcular as horas distribuídas na matriz
 def calcular_horas_distribuidas():
     ch_distribuida = {}
     valid_rows = df_ef1.dropna()
@@ -78,7 +74,6 @@ def calcular_horas_distribuidas():
                     ch_distribuida[prof] = ch_distribuida.get(prof, 0) + ch
     return ch_distribuida
 
-# 4. Painel Lateral - Controle de Carga Horária
 with st.sidebar:
     st.header("👨‍🏫 Controle de CH")
     df_profs = st.data_editor(
@@ -125,9 +120,8 @@ with st.sidebar:
     else:
         st.info("Cadastre um professor (a) acima.")
 
-# 5. Área Principal do Aplicativo
 st.title("📊 Matriz de Lotação de Professores (as)")
-st.markdown("Gerencie as turmas e disciplinas por nível de ensino. As alterações do Ensino Fundamental I são salvas diretamente no Google Sheets.")
+st.markdown("Gerencie as turmas e disciplinas por nível de ensino. Os dados do EF1 sincronizam com o Google Sheets.")
 
 aba1, aba2, aba3 = st.tabs(["Ensino Fundamental I", "Ensino Fundamental II", "Ensino Médio"])
 
@@ -144,9 +138,9 @@ with aba1:
     if st.button("💾 Salvar Alterações no Google Sheets (EF1)"):
         try:
             conn.update(spreadsheet=SHEET_URL, worksheet="EF1", data=dados_editados_ef1)
-            st.success("Dados sincronizados com sucesso na planilha do Google Sheets!")
+            st.success("Dados sincronizados com sucesso!")
         except Exception as e:
-            st.error(f"Erro ao salvar na planilha: {e}")
+            st.error(f"Erro ao salvar: {e}")
 
 with aba2:
     st.session_state["matriz_ef2"] = st.data_editor(
