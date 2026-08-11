@@ -8,10 +8,15 @@ st.set_page_config(page_title="Lotação 2026", layout="wide")
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/10nQG6fYwRKMbgxAGVOl8Ko8DHjCTt4jPnuGZ1pTqWac/edit?usp=sharing"
 
-# Configuração da conexão com o Google Sheets via gspread usando os Secrets
+# Conexão corrigida para tratar o formato da chave privada sem erro de PEM
 def conectar_gsheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_dict = dict(st.secrets["connections"]["gsheets"])
+    
+    # Garante que as quebras de linha da chave privada sejam interpretadas corretamente
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
     return client
