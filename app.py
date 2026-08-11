@@ -40,7 +40,23 @@ configuracao_colunas = {
         options=["Ensino Fundamental I", "Ensino Fundamental II", "Ensino Médio"],
         required=True
     ),
-    "Turma": st.column_config.TextColumn("Turma (Ex: 6º A, 1º Ano A)"),
+    "Turma": st.column_config.SelectboxColumn(
+        "Turma",
+        options=[
+            # Ensino Fundamental I
+            "4° A", "5° A",
+            # Ensino Fundamental II
+            "6° A", "6° B", "6° C", 
+            "7° A", 
+            "8° A", 
+            "9° A", "9° B", "9° C", "9° D",
+            # Ensino Médio
+            "1° A", "1° B", 
+            "2° A", 
+            "3° A"
+        ],
+        required=True
+    ),
     "Turno": st.column_config.SelectboxColumn(
         "Turno",
         options=["Matutino", "Vespertino", "Noturno", "Integral"]
@@ -48,11 +64,35 @@ configuracao_colunas = {
     "Disciplina": st.column_config.SelectboxColumn(
         "Disciplina",
         options=[
-            "Arte", "Ciências", "Ciências Human. e Socie.", "Ciências naturais na Contemporaneidade", 
-            "Educação Física", "Filosofia", "Física", "Geografia", "História", 
-            "Leitura (literatura) e Prod. Textual", "Letram. e rac. Matemático",
-            "Língua Inglesa", "Língua Portuguesa", "Matemática", "Matemática Geometria", 
-            "Química", "Sociologia", "Tecnologia e Cida Digi."
+            "Apoio e Orien. de estudos",
+            "Arte",
+            "Biologia",
+            "Ciências",
+            "Ciências Human. e Socie.",
+            "Ciências naturais na Contemporaneidade",
+            "Desenvol. Local",
+            "Ed. Física",
+            "Empresa Pedagógica",
+            "Filosofia",
+            "Física",
+            "Geografia",
+            "História",
+            "Investigação Cien. e Tec.",
+            "Leitura (literatura) e Prod. Textual",
+            "Letram. e rac. Matemático",
+            "Língua Inglesa",
+            "Língua Portuguesa",
+            "Língua Portuguesa - RA",
+            "Literatura Arte e Movimento",
+            "Matemática",
+            "Matemática Geometria",
+            "Matemática-RA",
+            "Química",
+            "Sociologia",
+            "Tecnologia e Cida Digi.",
+            "UC PROFISSIONAL 01",
+            "UC PROFISSIONAL 02",
+            "UC PROFISSIONAL 03"
         ],
         required=True
     ),
@@ -78,7 +118,7 @@ st.divider()
 df_preenchido = dados_editados.dropna(subset=["Nome do Professor (a)"])
 
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Professores Lançados", len(df_preenchido))
+col1.metric("Professores (as) Lançados", len(df_preenchido))
 col2.metric("Vagas Puras", len(df_preenchido[df_preenchido["Vaga Pura"] == True]))
 col3.metric("Total CH Lançada", int(df_preenchido["Carga Horária"].sum()) if not df_preenchido.empty else 0)
 col4.download_button(
