@@ -1,12 +1,16 @@
 import streamlit as st
 import pandas as pd
 
-# Configuração da página para ocupar a tela toda
+# Configuração da página
 st.set_page_config(page_title="Lotação 2026", layout="wide")
 
-# ==========================================
-# 1. DADOS INICIAIS
-# ==========================================
+# 1. Conexão com o Google Sheets
+conn = st.connection("gsheets", type="GSheetsConnection")
+
+# URL da planilha informada
+SHEET_URL = "https://docs.google.com/spreadsheets/d/10nQG6fYwRKMbgxAGVOl8Ko8DHjCTt4jPnuGZ1pTqWac/edit?usp=sharing"
+
+# 2. Listas padrão de Disciplinas e Turmas
 disciplinas = [
     "Apoio e Orien. de estudos", "Arte", "Biologia", "Ciências", 
     "Ciências Human. e Socie.", "Ciências naturais na Contemporaneidade", 
@@ -23,15 +27,11 @@ turmas_ef1 = ["4° A", "5° A"]
 turmas_ef2 = ["6° A", "6° B", "6° C", "7° A", "8° A", "9° A", "9° B", "9° C", "9° D"]
 turmas_em = ["1° A", "1° B", "2° A", "3° A"]
 
-# ==========================================
-# 2. FUNÇÕES DE APOIO
-# ==========================================
 def criar_df_matriz(turmas):
     cols = ["Disciplina"]
     for t in turmas:
         cols.append(f"{t} - CH")
         cols.append(f"{t} - Prof (a)")
-    
     df = pd.DataFrame(columns=cols)
     df["Disciplina"] = disciplinas
     return df
@@ -45,35 +45,18 @@ def gerar_config_colunas(turmas):
         config[f"{t} - Prof (a)"] = st.column_config.TextColumn(f"{t} - Prof (a)")
     return config
 
-def calcular_horas_distribuidas():
-    ch_distribuida = {}
-    
-    # Varre todas as matrizes para somar a CH por professor
-    df_list = [st.session_state["matriz_ef1"], st.session_state["matriz_ef2"], st.session_state["matriz_em"]]
-    turmas_list = [turmas_ef1, turmas_ef2, turmas_em]
-    
-    for df, turmas in zip(df_list, turmas_list):
-        for t in turmas:
-            col_ch = f"{t} - CH"
-            col_prof = f"{t} - Prof (a)"
-            
-            # Filtra linhas onde o nome do professor foi preenchido
-            valid_rows = df.dropna(subset=[col_prof])
-            for _, row in valid_rows.iterrows():
-                prof = str(row[col_prof]).strip()
-                # Pega a CH, se for inválida assume 0
-                ch = pd.to_numeric(row[col_ch], errors='coerce')
-                
-                if pd.notna(ch) and prof and prof != "None":
-                    ch_distribuida[prof] = ch_distribuida.get(prof, 0) + ch
-                    
-    return ch_distribuida
+# 3. Carregamento dos dados salvos no Sheets (com cache de leitura)
+try:
+    # Tentamos ler a aba 'EF1' da planilha como exemplo inicial de integração
+    df_carregado = conn.read(spreadsheet=SHEET_URL, worksheet="EF1", ttl=5)
+    if df_carregado.empty or "Disciplina" not in df_carregado.columns:
+        df_ef1 = criar_df_matriz(turmas_ef1)
+    else:
+        df_ef1 = df_carregado
+except:
+    df_ef1 = criar_df_matriz(turmas_ef1)
 
-# ==========================================
-# 3. INICIALIZAÇÃO DOS DADOS NA SESSÃO
-# ==========================================
-if "matriz_ef1" not in st.session_state:
-    st.session_state["matriz_ef1"] = criar_df_matriz(turmas_ef1)
+# Inicializa demais abas caso não existam na sessão
 if "matriz_ef2" not in st.session_state:
     st.session_state["matriz_ef2"] = criar_df_matriz(turmas_ef2)
 if "matriz_em" not in st.session_state:
@@ -81,14 +64,24 @@ if "matriz_em" not in st.session_state:
 if "professores" not in st.session_state:
     st.session_state["professores"] = pd.DataFrame(columns=["Professor (a)", "CH Total"])
 
-# ==========================================
-# 4. PAINEL LATERAL (CONTROLE DE CH)
-# ==========================================
+# Função para calcular horas distribuídas na matriz do EF1 (expansível para as outras)
+def calcular_horas_distribuidas():
+    ch_distribuida = {}
+    valid_rows = df_ef1.dropna()
+    for _, row in valid_rows.iterrows():
+        for t in turmas_ef1:
+            col_prof = f"{t} - Prof (a)"
+            col_ch = f"{t} - CH"
+            if col_prof in row and col_ch in row:
+                prof = str(row[col_prof]).strip()
+                ch = pd.to_numeric(row[col_ch], errors='coerce')
+                if pd.notna(ch) and prof and prof != "None" and prof != "nan":
+                    ch_distribuida[prof] = ch_distribuida.get(prof, 0) + ch
+    return ch_distribuida
+
+# 4. Painel Lateral (Controle de CH)
 with st.sidebar:
     st.header("👨‍🏫 Controle de CH")
-    st.markdown("1️⃣ **Cadastre a carga total:**")
-    
-    # Tabela para cadastrar os professores e suas CHs totais
     df_profs = st.data_editor(
         st.session_state["professores"],
         num_rows="dynamic",
@@ -101,10 +94,8 @@ with st.sidebar:
     )
     st.session_state["professores"] = df_profs
     
-    # Cálculo em tempo real do status
     st.divider()
     st.markdown("2️⃣ **Status da Distribuição:**")
-    
     ch_usada = calcular_horas_distribuidas()
     resumo_status = []
     
@@ -133,24 +124,31 @@ with st.sidebar:
     if resumo_status:
         st.dataframe(pd.DataFrame(resumo_status), use_container_width=True, hide_index=True)
     else:
-        st.info("Cadastre um professor (a) acima para acompanhar o status.")
+        st.info("Cadastre um professor (a) acima.")
 
-# ==========================================
-# 5. ÁREA PRINCIPAL (MATRIZ DE LOTAÇÃO)
-# ==========================================
+# 5. Área Principal com Abas
 st.title("📊 Matriz de Lotação de Professores (as)")
-st.markdown("Preencha a Carga Horária (CH) e digite o nome do professor (a) correspondente. O painel lateral atualizará o cálculo automaticamente.")
+st.markdown("Os dados alterados nas tabelas abaixo são sincronizados diretamente com a sua planilha do Google Sheets.")
 
 aba1, aba2, aba3 = st.tabs(["Ensino Fundamental I", "Ensino Fundamental II", "Ensino Médio"])
 
 with aba1:
-    st.session_state["matriz_ef1"] = st.data_editor(
-        st.session_state["matriz_ef1"],
+    dados_editados_ef1 = st.data_editor(
+        df_ef1,
         column_config=gerar_config_colunas(turmas_ef1),
         use_container_width=True,
         hide_index=True,
-        height=1060
+        height=1060,
+        key="editor_ef1"
     )
+    
+    # Botão para salvar alterações de volta na Planilha do Google
+    if st.button("💾 Salvar Alterações no Google Sheets (EF1)"):
+        try:
+            conn.update(spreadsheet=SHEET_URL, worksheet="EF1", data=dados_editados_ef1)
+            st.success("Dados salvos com sucesso na planilha do Google Sheets!")
+        except Exception as e:
+            st.error(f"Erro ao salvar: {e}")
 
 with aba2:
     st.session_state["matriz_ef2"] = st.data_editor(
