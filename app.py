@@ -32,10 +32,6 @@ COLUNAS_LOTACAO = [
 # ============================================================
 # CONEXÃO COM GOOGLE SHEETS
 # ============================================================
-# CORREÇÃO 4: escopos atualizados (os antigos "feeds" são do
-# oauth2client legado; o padrão atual do Google é este abaixo).
-# CORREÇÃO 5: cache_resource em vez de recriar a conexão a cada
-# chamada — o client não muda entre execuções.
 
 @st.cache_resource
 def conectar_gsheets():
@@ -50,10 +46,12 @@ def conectar_gsheets():
     )
 
     if "private_key" in creds_dict:
-        creds_dict["private_key"] = (
-            creds_dict["private_key"]
-            .replace("\\n", "\n")
-        )
+        # Tratamento robusto para garantir que a chave privada 
+        # mantenha as quebras de linha corretas (evita Invalid padding)
+        key = creds_dict["private_key"]
+        if isinstance(key, str):
+            key = key.replace("\\n", "\n")
+        creds_dict["private_key"] = key
 
     creds = Credentials.from_service_account_info(
         creds_dict,
@@ -84,8 +82,6 @@ def carregar_professores():
             "PROFESSORES"
         )
 
-        # Lê os dados considerando a primeira linha
-        # como cabeçalho
         dados = worksheet.get_all_records()
 
         if not dados:
@@ -98,10 +94,6 @@ def carregar_professores():
             )
 
         df = pd.DataFrame(dados)
-
-        # ----------------------------------------------------
-        # Verifica os cabeçalhos da planilha
-        # ----------------------------------------------------
 
         if "PROFESSORES" not in df.columns:
 
@@ -131,10 +123,6 @@ def carregar_professores():
                 ]
             )
 
-        # ----------------------------------------------------
-        # Limpeza dos dados
-        # ----------------------------------------------------
-
         df["PROFESSORES"] = (
             df["PROFESSORES"]
             .fillna("")
@@ -147,12 +135,10 @@ def carregar_professores():
             errors="coerce"
         ).fillna(0)
 
-        # Remove linhas sem nome
         df = df[
             df["PROFESSORES"] != ""
         ]
 
-        # Remove possíveis duplicidades
         df = df.drop_duplicates(
             subset=["PROFESSORES"],
             keep="last"
@@ -203,10 +189,6 @@ def carregar_lotacao():
 
         df = pd.DataFrame(dados)
 
-        # ----------------------------------------------------
-        # Garante que todas as colunas existam
-        # ----------------------------------------------------
-
         for coluna in COLUNAS_LOTACAO:
 
             if coluna not in df.columns:
@@ -215,12 +197,6 @@ def carregar_lotacao():
         df = df[
             COLUNAS_LOTACAO
         ]
-
-        # ----------------------------------------------------
-        # Converte carga horária
-        # CORREÇÃO 6: fillna(0) para não propagar NaN silencioso
-        # para somas e comparações mais adiante.
-        # ----------------------------------------------------
 
         df["CARGA HORÁRIA"] = pd.to_numeric(
             df["CARGA HORÁRIA"],
@@ -245,7 +221,6 @@ def carregar_lotacao():
 # ============================================================
 
 lista_disciplinas = [
-
     "Apoio e Orien. de estudos",
     "Arte",
     "Biologia",
@@ -283,7 +258,6 @@ lista_disciplinas = [
 # ============================================================
 
 lista_turmas = [
-
     "4° A",
     "5° A",
     "6° A",
@@ -536,10 +510,6 @@ with st.sidebar:
                 - float(ch_alocada)
             )
 
-            # ------------------------------------------------
-            # STATUS
-            # ------------------------------------------------
-
             if saldo == 0:
 
                 status = "✅ COMPLETA"
@@ -574,19 +544,11 @@ with st.sidebar:
             status_lista
         )
 
-        # ----------------------------------------------------
-        # TABELA DE STATUS
-        # ----------------------------------------------------
-
         st.dataframe(
             df_status,
             use_container_width=True,
             hide_index=True
         )
-
-        # ----------------------------------------------------
-        # RESUMO GERAL
-        # ----------------------------------------------------
 
         st.divider()
 
@@ -643,15 +605,9 @@ st.divider()
 
 col1, col2, col3, col4 = st.columns(4)
 
-
-# Total de lançamentos
-
 total_lancamentos = len(
     df_editado
 )
-
-
-# CH distribuída
 
 total_ch_distribuida = (
     pd.to_numeric(
@@ -662,15 +618,9 @@ total_ch_distribuida = (
     .sum()
 )
 
-
-# Total de professores
-
 total_professores = len(
     df_professores
 )
-
-
-# Professores excedidos
 
 professores_excedidos = 0
 
@@ -729,10 +679,6 @@ with col4:
         professores_excedidos
     )
 
-
-# ============================================================
-# ALERTA DE EXCESSO
-# ============================================================
 
 if professores_excedidos > 0:
 
@@ -805,10 +751,6 @@ if professores_pendentes:
 # ============================================================
 # VALIDAÇÃO DE LINHAS ANTES DE SALVAR
 # ============================================================
-# CORREÇÃO 3: valida campos obrigatórios vazios/ausentes
-# (DISCIPLINA, TURMA, TURNO, CARGA HORÁRIA) antes de permitir
-# salvar — antes disso, uma linha incompleta ia direto para a
-# planilha sem aviso.
 
 def validar_linhas(df):
 
@@ -824,7 +766,6 @@ def validar_linhas(df):
         turno = str(row.get("TURNO", "")).strip()
         ch = pd.to_numeric(row.get("CARGA HORÁRIA"), errors="coerce")
 
-        # Ignora linhas totalmente vazias (sobra do editor dinâmico)
         if not professor and not disciplina and not turma and not turno and pd.isna(ch):
             continue
 
@@ -856,9 +797,6 @@ def validar_linhas(df):
 
 st.divider()
 
-# CORREÇÃO 2: aviso explícito de que salvar sobrescreve a aba
-# inteira, com confirmação obrigatória antes de habilitar o botão.
-
 st.warning(
     "⚠️ Salvar substitui **todo o conteúdo** da aba "
     "Página1 pelos dados atuais desta tabela. Qualquer "
@@ -872,10 +810,6 @@ confirmar_sobrescrita = st.checkbox(
 
 col_atualizar, col_salvar = st.columns(2)
 
-
-# ============================================================
-# ATUALIZAR PROFESSORES
-# ============================================================
 
 with col_atualizar:
 
@@ -891,10 +825,6 @@ with col_atualizar:
         st.rerun()
 
 
-# ============================================================
-# SALVAR LOTAÇÃO
-# ============================================================
-
 with col_salvar:
 
     salvar = st.button(
@@ -908,10 +838,6 @@ with col_salvar:
 if salvar:
 
     try:
-
-        # ----------------------------------------------------
-        # Verifica professores utilizados
-        # ----------------------------------------------------
 
         professores_digitados = set(
             df_editado[
@@ -948,10 +874,6 @@ if salvar:
 
             st.stop()
 
-        # ----------------------------------------------------
-        # Valida campos obrigatórios (CORREÇÃO 3)
-        # ----------------------------------------------------
-
         erros_validacao = validar_linhas(df_editado)
 
         if erros_validacao:
@@ -966,11 +888,6 @@ if salvar:
 
             st.stop()
 
-
-        # ----------------------------------------------------
-        # Conecta ao Google Sheets
-        # ----------------------------------------------------
-
         client = conectar_gsheets()
 
         spreadsheet = client.open_by_url(
@@ -980,11 +897,6 @@ if salvar:
         worksheet = spreadsheet.worksheet(
             "Página1"
         )
-
-
-        # ----------------------------------------------------
-        # Prepara os dados
-        # ----------------------------------------------------
 
         df_salvar = df_editado.copy()
 
@@ -998,7 +910,6 @@ if salvar:
             .fillna("")
         )
 
-
         dados_para_salvar = (
             [
                 df_salvar.columns.tolist()
@@ -1007,51 +918,22 @@ if salvar:
             df_salvar.values.tolist()
         )
 
-
-        # ----------------------------------------------------
-        # Limpa somente a Página1
-        # ----------------------------------------------------
-
         worksheet.clear()
-
-
-        # ----------------------------------------------------
-        # Grava os dados
-        # CORREÇÃO 1: argumentos nomeados (range_name=, values=)
-        # em vez de posicionais — funciona tanto em gspread <6
-        # quanto em >=6, que trocaram a ordem dos parâmetros.
-        # ----------------------------------------------------
 
         worksheet.update(
             range_name="A1",
             values=dados_para_salvar
         )
 
-
-        # ----------------------------------------------------
-        # Limpa cache
-        # ----------------------------------------------------
-
         carregar_lotacao.clear()
 
         carregar_professores.clear()
-
-
-        # ----------------------------------------------------
-        # Mensagem
-        # ----------------------------------------------------
 
         st.success(
             "✅ Lotação salva com sucesso na aba Página1!"
         )
 
-
-        # ----------------------------------------------------
-        # Recarrega
-        # ----------------------------------------------------
-
         st.rerun()
-
 
     except Exception as e:
 
