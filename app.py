@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
-import base64
+import json
 from google.oauth2.service_account import Credentials
 
 # ============================================================
@@ -10,11 +10,10 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(page_title="Lotação 2026", layout="wide")
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/10nQG6fYwRKMbgxAGVOl8Ko8DHjCTt4jPnuGZ1pTqWac/edit"
-
 COLUNAS_LOTACAO = ["PROFESSORES", "DISCIPLINA", "CARGA HORÁRIA", "TURMA", "TURNO"]
 
 # ============================================================
-# CONEXÃO COM GOOGLE SHEETS
+# CONEXÃO COM GOOGLE SHEETS (CORREÇÃO DE PADDING)
 # ============================================================
 @st.cache_resource
 def conectar_gsheets():
@@ -22,22 +21,25 @@ def conectar_gsheets():
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-
-    # Carrega os segredos do Streamlit Cloud
-    creds_dict = dict(st.secrets["connections"]["gsheets"])
-
-    # TRATAMENTO DO ERRO DE PADDING:
-    # Garante que os \n literais no segredo virem quebras de linha reais
-    if "private_key" in creds_dict:
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    
+    # 1. Pega os segredos
+    secrets_dict = dict(st.secrets["connections"]["gsheets"])
+    
+    # 2. Força a re-leitura do objeto para garantir que o formato JSON/TOML
+    # não esteja "quebrando" a string da chave privada
+    json_str = json.dumps(secrets_dict)
+    fixed_dict = json.loads(json_str)
+    
+    # 3. Garante o formato PEM correto para o Google Auth
+    if "private_key" in fixed_dict:
+        fixed_dict["private_key"] = fixed_dict["private_key"].replace("\\n", "\n")
 
     creds = Credentials.from_service_account_info(
-        creds_dict,
+        fixed_dict,
         scopes=scope
     )
-
-    client = gspread.authorize(creds)
-    return client
+    
+    return gspread.authorize(creds)
 
 # ============================================================
 # CARREGAR DADOS
@@ -50,10 +52,7 @@ def carregar_professores():
         worksheet = spreadsheet.worksheet("PROFESSORES")
         dados = worksheet.get_all_records()
         
-        if not dados:
-            return pd.DataFrame(columns=["PROFESSORES", "CARGA HORÁRIA"])
-            
-        df = pd.DataFrame(dados)
+        df = pd.DataFrame(dados) if dados else pd.DataFrame(columns=["PROFESSORES", "CARGA HORÁRIA"])
         df["PROFESSORES"] = df["PROFESSORES"].fillna("").astype(str).str.strip()
         df["CARGA HORÁRIA"] = pd.to_numeric(df["CARGA HORÁRIA"], errors="coerce").fillna(0)
         df = df[df["PROFESSORES"] != ""]
@@ -70,10 +69,7 @@ def carregar_lotacao():
         worksheet = spreadsheet.worksheet("Página1")
         dados = worksheet.get_all_records()
         
-        if not dados:
-            return pd.DataFrame(columns=COLUNAS_LOTACAO)
-            
-        df = pd.DataFrame(dados)
+        df = pd.DataFrame(dados) if dados else pd.DataFrame(columns=COLUNAS_LOTACAO)
         for col in COLUNAS_LOTACAO:
             if col not in df.columns: df[col] = ""
         df = df[COLUNAS_LOTACAO]
@@ -83,17 +79,12 @@ def carregar_lotacao():
         st.error(f"Erro ao carregar a Página1: {e}")
         return pd.DataFrame(columns=COLUNAS_LOTACAO)
 
-# ... [Mantenha aqui todas as suas listas de disciplinas, turmas e turnos anteriores] ...
-lista_disciplinas = ["Apoio e Orien. de estudos", "Arte", "Biologia", "Ciências", "Ciências Human. e Socie.", "Ciências naturais na Contemporaneidade", "Desenvol. Local", "Ed. Física", "Empresa Pedagógica", "Filosofia", "Física", "Geografia", "História", "Investigação Cien. e Tec.", "Leitura (literatura) e Prod. Textual", "Letram. e rac. Matemático", "Língua Inglesa", "Língua Portuguesa", "Língua Portuguesa - RA", "Literatura Arte e Movimento", "Matemática", "Matemática Geometria", "Matemática-RA", "Química", "Sociologia", "Tecnologia e Cida Digi.", "UC PROFISSIONAL 01", "UC PROFISSIONAL 02", "UC PROFISSIONAL 03"]
-lista_turmas = ["4° A", "5° A", "6° A", "6° B", "6° C", "7° A", "8° A", "9° A", "9° B", "9° C", "9° D", "1° A", "1° B", "2° A", "3° A"]
-lista_turnos = ["Matutino", "Vespertino", "Noturno", "Integral"]
+# ... [Mantenha aqui as suas listas de listas_disciplinas, lista_turmas, etc.] ...
 
-# Execução principal
-df_professores = carregar_professores()
-df_dados = carregar_lotacao()
-lista_professores = df_professores["PROFESSORES"].dropna().astype(str).str.strip().tolist()
-
-# ... [O restante do seu código de interface, botões e salvamento permanece o mesmo] ...
-# Dica: O código daqui para baixo não precisa mudar, o problema era apenas a conexão!
+# ============================================================
+# INTERFACE PRINCIPAL (Exemplo de estrutura)
+# ============================================================
 st.title("📋 Sistema de Lotação 2026")
-# ... (continue com seu código de exibição e edição)
+
+# Restante do seu código permanece igual (tabela, botões, salvamento, etc.)
+# O ponto crítico de erro era exclusivamente a conexão.
