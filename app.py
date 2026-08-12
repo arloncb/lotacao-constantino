@@ -1056,4 +1056,3 @@ if salvar:
         st.error(
             f"❌ Erro ao salvar a lotação: {e}"
         )
-```
