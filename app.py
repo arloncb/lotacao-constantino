@@ -32,11 +32,16 @@ COLUNAS_LOTACAO = [
 # ============================================================
 # CONEXÃO COM GOOGLE SHEETS
 # ============================================================
+# CORREÇÃO 4: escopos atualizados (os antigos "feeds" são do
+# oauth2client legado; o padrão atual do Google é este abaixo).
+# CORREÇÃO 5: cache_resource em vez de recriar a conexão a cada
+# chamada — o client não muda entre execuções.
 
+@st.cache_resource
 def conectar_gsheets():
 
     scope = [
-        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
 
@@ -213,12 +218,14 @@ def carregar_lotacao():
 
         # ----------------------------------------------------
         # Converte carga horária
+        # CORREÇÃO 6: fillna(0) para não propagar NaN silencioso
+        # para somas e comparações mais adiante.
         # ----------------------------------------------------
 
         df["CARGA HORÁRIA"] = pd.to_numeric(
             df["CARGA HORÁRIA"],
             errors="coerce"
-        )
+        ).fillna(0)
 
         return df
 
@@ -796,10 +803,72 @@ if professores_pendentes:
 
 
 # ============================================================
+# VALIDAÇÃO DE LINHAS ANTES DE SALVAR
+# ============================================================
+# CORREÇÃO 3: valida campos obrigatórios vazios/ausentes
+# (DISCIPLINA, TURMA, TURNO, CARGA HORÁRIA) antes de permitir
+# salvar — antes disso, uma linha incompleta ia direto para a
+# planilha sem aviso.
+
+def validar_linhas(df):
+
+    erros = []
+
+    for i, row in df.iterrows():
+
+        numero_linha = i + 1
+
+        professor = str(row.get("PROFESSORES", "")).strip()
+        disciplina = str(row.get("DISCIPLINA", "")).strip()
+        turma = str(row.get("TURMA", "")).strip()
+        turno = str(row.get("TURNO", "")).strip()
+        ch = pd.to_numeric(row.get("CARGA HORÁRIA"), errors="coerce")
+
+        # Ignora linhas totalmente vazias (sobra do editor dinâmico)
+        if not professor and not disciplina and not turma and not turno and pd.isna(ch):
+            continue
+
+        campos_faltando = []
+
+        if not professor:
+            campos_faltando.append("PROFESSORES")
+        if not disciplina:
+            campos_faltando.append("DISCIPLINA")
+        if not turma:
+            campos_faltando.append("TURMA")
+        if not turno:
+            campos_faltando.append("TURNO")
+        if pd.isna(ch) or ch <= 0:
+            campos_faltando.append("CARGA HORÁRIA")
+
+        if campos_faltando:
+            erros.append(
+                f"Linha {numero_linha}: campo(s) incompleto(s) — "
+                f"{', '.join(campos_faltando)}."
+            )
+
+    return erros
+
+
+# ============================================================
 # BOTÕES
 # ============================================================
 
 st.divider()
+
+# CORREÇÃO 2: aviso explícito de que salvar sobrescreve a aba
+# inteira, com confirmação obrigatória antes de habilitar o botão.
+
+st.warning(
+    "⚠️ Salvar substitui **todo o conteúdo** da aba "
+    "Página1 pelos dados atuais desta tabela. Qualquer "
+    "coisa adicionada manualmente na planilha fora daqui "
+    "será perdida."
+)
+
+confirmar_sobrescrita = st.checkbox(
+    "Estou ciente de que isso vai sobrescrever a aba Página1."
+)
 
 col_atualizar, col_salvar = st.columns(2)
 
@@ -831,7 +900,8 @@ with col_salvar:
     salvar = st.button(
         "💾 Salvar Lotação no Google Sheets",
         type="primary",
-        use_container_width=True
+        use_container_width=True,
+        disabled=not confirmar_sobrescrita
     )
 
 
@@ -875,6 +945,24 @@ if salvar:
                 "cadastrados na aba PROFESSORES: "
                 f"{nomes}"
             )
+
+            st.stop()
+
+        # ----------------------------------------------------
+        # Valida campos obrigatórios (CORREÇÃO 3)
+        # ----------------------------------------------------
+
+        erros_validacao = validar_linhas(df_editado)
+
+        if erros_validacao:
+
+            st.error(
+                "Não foi possível salvar. Corrija as linhas "
+                "abaixo antes de tentar novamente:"
+            )
+
+            for erro in erros_validacao:
+                st.write(f"- {erro}")
 
             st.stop()
 
@@ -929,11 +1017,14 @@ if salvar:
 
         # ----------------------------------------------------
         # Grava os dados
+        # CORREÇÃO 1: argumentos nomeados (range_name=, values=)
+        # em vez de posicionais — funciona tanto em gspread <6
+        # quanto em >=6, que trocaram a ordem dos parâmetros.
         # ----------------------------------------------------
 
         worksheet.update(
-            "A1",
-            dados_para_salvar
+            range_name="A1",
+            values=dados_para_salvar
         )
 
 
