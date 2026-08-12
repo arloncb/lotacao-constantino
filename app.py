@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import gspread
@@ -14,11 +13,11 @@ st.set_page_config(
     layout="wide"
 )
 
-SHEET_URL = "https://docs.google.com/spreadsheets/d/10nQG6fYwRKMbgxAGVOl8Ko8DHjCTt4jPnuGZ1pTqWac/edit?usp=sharing"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/10nQG6fYwRKMbgxAGVOl8Ko8DHjCTt4jPnuGZ1pTqWac/edit"
 
 
 # ============================================================
-# CONFIGURAÇÃO DAS COLUNAS
+# COLUNAS DA ABA PÁGINA1
 # ============================================================
 
 COLUNAS_LOTACAO = [
@@ -45,10 +44,7 @@ def conectar_gsheets():
         st.secrets["connections"]["gsheets"]
     )
 
-    # Corrige a chave privada quando as quebras de linha
-    # aparecem como \n dentro do secrets.toml
     if "private_key" in creds_dict:
-
         creds_dict["private_key"] = (
             creds_dict["private_key"]
             .replace("\\n", "\n")
@@ -65,7 +61,7 @@ def conectar_gsheets():
 
 
 # ============================================================
-# CARREGAR PROFESSORES DA ABA "PROFESSORES"
+# CARREGAR PROFESSORES DA ABA PROFESSORES
 # ============================================================
 
 @st.cache_data(ttl=10)
@@ -83,82 +79,50 @@ def carregar_professores():
             "PROFESSORES"
         )
 
+        # Lê os dados considerando a primeira linha
+        # como cabeçalho
         dados = worksheet.get_all_records()
 
         if not dados:
 
             return pd.DataFrame(
                 columns=[
-                    "PROFESSOR(A)",
-                    "CH TOTAL"
+                    "PROFESSORES",
+                    "CARGA HORÁRIA"
                 ]
             )
 
         df = pd.DataFrame(dados)
 
         # ----------------------------------------------------
-        # Identifica as colunas mesmo que o usuário tenha
-        # escrito os títulos com pequenas diferenças
+        # Verifica os cabeçalhos da planilha
         # ----------------------------------------------------
 
-        mapa_colunas = {}
-
-        for coluna in df.columns:
-
-            nome = str(coluna).strip().upper()
-
-            if nome in [
-                "PROFESSOR",
-                "PROFESSOR(A)",
-                "PROFESSORES",
-                "NOME",
-                "NOME DO PROFESSOR"
-            ]:
-
-                mapa_colunas[coluna] = "PROFESSOR(A)"
-
-            elif nome in [
-                "CH",
-                "CH TOTAL",
-                "CARGA HORÁRIA",
-                "CARGA HORÁRIA TOTAL"
-            ]:
-
-                mapa_colunas[coluna] = "CH TOTAL"
-
-        df = df.rename(
-            columns=mapa_colunas
-        )
-
-        # ----------------------------------------------------
-        # Verifica se encontrou as duas colunas
-        # ----------------------------------------------------
-
-        if "PROFESSOR(A)" not in df.columns:
+        if "PROFESSORES" not in df.columns:
 
             st.error(
-                "A aba PROFESSORES precisa ter uma coluna "
-                "com o nome do professor."
+                "A aba PROFESSORES precisa ter "
+                "'PROFESSORES' na célula A1."
             )
 
             return pd.DataFrame(
                 columns=[
-                    "PROFESSOR(A)",
-                    "CH TOTAL"
+                    "PROFESSORES",
+                    "CARGA HORÁRIA"
                 ]
             )
 
-        if "CH TOTAL" not in df.columns:
+        if "CARGA HORÁRIA" not in df.columns:
 
             st.error(
-                "A aba PROFESSORES precisa ter uma coluna "
-                "com a carga horária total."
+                "A aba PROFESSORES precisa ter "
+                "'CARGA HORÁRIA' na célula B1."
             )
 
             return pd.DataFrame(
                 columns=[
-                    "PROFESSOR(A)",
-                    "CH TOTAL"
+                    "PROFESSORES",
+                    "CARGA HORÁRIA"
                 ]
             )
 
@@ -166,26 +130,26 @@ def carregar_professores():
         # Limpeza dos dados
         # ----------------------------------------------------
 
-        df["PROFESSOR(A)"] = (
-            df["PROFESSOR(A)"]
+        df["PROFESSORES"] = (
+            df["PROFESSORES"]
             .fillna("")
             .astype(str)
             .str.strip()
         )
 
-        df["CH TOTAL"] = pd.to_numeric(
-            df["CH TOTAL"],
+        df["CARGA HORÁRIA"] = pd.to_numeric(
+            df["CARGA HORÁRIA"],
             errors="coerce"
         ).fillna(0)
 
-        # Remove linhas sem professor
+        # Remove linhas sem nome
         df = df[
-            df["PROFESSOR(A)"] != ""
+            df["PROFESSORES"] != ""
         ]
 
         # Remove possíveis duplicidades
         df = df.drop_duplicates(
-            subset=["PROFESSOR(A)"],
+            subset=["PROFESSORES"],
             keep="last"
         )
 
@@ -199,14 +163,14 @@ def carregar_professores():
 
         return pd.DataFrame(
             columns=[
-                "PROFESSOR(A)",
-                "CH TOTAL"
+                "PROFESSORES",
+                "CARGA HORÁRIA"
             ]
         )
 
 
 # ============================================================
-# CARREGAR DADOS DA ABA "PÁGINA1"
+# CARREGAR DADOS DA ABA PÁGINA1
 # ============================================================
 
 @st.cache_data(ttl=10)
@@ -234,19 +198,23 @@ def carregar_lotacao():
 
         df = pd.DataFrame(dados)
 
-        # Garante todas as colunas necessárias
+        # ----------------------------------------------------
+        # Garante que todas as colunas existam
+        # ----------------------------------------------------
+
         for coluna in COLUNAS_LOTACAO:
 
             if coluna not in df.columns:
-
                 df[coluna] = ""
 
-        # Mantém somente as colunas do sistema
         df = df[
             COLUNAS_LOTACAO
         ]
 
-        # Converte CH
+        # ----------------------------------------------------
+        # Converte carga horária
+        # ----------------------------------------------------
+
         df["CARGA HORÁRIA"] = pd.to_numeric(
             df["CARGA HORÁRIA"],
             errors="coerce"
@@ -266,7 +234,7 @@ def carregar_lotacao():
 
 
 # ============================================================
-# LISTAS FIXAS
+# LISTA DE DISCIPLINAS
 # ============================================================
 
 lista_disciplinas = [
@@ -303,35 +271,35 @@ lista_disciplinas = [
 ]
 
 
+# ============================================================
+# LISTA DE TURMAS
+# ============================================================
+
 lista_turmas = [
 
     "4° A",
     "5° A",
-
     "6° A",
     "6° B",
     "6° C",
-
     "7° A",
-
     "8° A",
-
     "9° A",
     "9° B",
     "9° C",
     "9° D",
-
     "1° A",
     "1° B",
-
     "2° A",
-
     "3° A"
 ]
 
 
-lista_turnos = [
+# ============================================================
+# LISTA DE TURNOS
+# ============================================================
 
+lista_turnos = [
     "Matutino",
     "Vespertino",
     "Noturno",
@@ -340,7 +308,7 @@ lista_turnos = [
 
 
 # ============================================================
-# CARREGA OS DADOS
+# CARREGAR OS DADOS
 # ============================================================
 
 df_professores = carregar_professores()
@@ -349,11 +317,11 @@ df_dados = carregar_lotacao()
 
 
 # ============================================================
-# LISTA DE PROFESSORES PARA O MENU
+# LISTA DE PROFESSORES
 # ============================================================
 
 lista_professores = (
-    df_professores["PROFESSOR(A)"]
+    df_professores["PROFESSORES"]
     .dropna()
     .astype(str)
     .str.strip()
@@ -362,7 +330,7 @@ lista_professores = (
 
 
 # ============================================================
-# CALCULAR CH DISTRIBUÍDA POR PROFESSOR
+# CALCULAR CH DISTRIBUÍDA
 # ============================================================
 
 def calcular_horas_atribuidas(df):
@@ -370,20 +338,18 @@ def calcular_horas_atribuidas(df):
     resultado = {}
 
     if df.empty:
-
         return resultado
 
     if (
-        "PROFESSOR(A)" not in df.columns
+        "PROFESSORES" not in df.columns
         or "CARGA HORÁRIA" not in df.columns
     ):
-
         return resultado
 
     for _, linha in df.iterrows():
 
         professor = str(
-            linha["PROFESSOR(A)"]
+            linha["PROFESSORES"]
         ).strip()
 
         ch = pd.to_numeric(
@@ -419,10 +385,12 @@ st.title(
 
 st.markdown(
     """
-    Distribua as aulas dos professores por **disciplina, turma e turno**.
-    
-    Os professores e suas respectivas cargas horárias são carregados
-    automaticamente da aba **PROFESSORES** do Google Sheets.
+    Distribua as aulas dos professores por
+    **disciplina, turma e turno**.
+
+    Os professores e suas respectivas cargas horárias
+    são carregados automaticamente da aba
+    **PROFESSORES** do Google Sheets.
     """
 )
 
@@ -439,8 +407,8 @@ if not lista_professores:
     )
 
     st.info(
-        "Adicione o nome do professor na coluna A e "
-        "a carga horária na coluna B."
+        "Adicione o nome do professor na coluna A "
+        "e a carga horária na coluna B."
     )
 
 
@@ -450,14 +418,10 @@ if not lista_professores:
 
 configuracao_colunas = {
 
-    "PROFESSOR(A)": st.column_config.SelectboxColumn(
-
-        "PROFESSOR(A)",
-
+    "PROFESSORES": st.column_config.SelectboxColumn(
+        "PROFESSORES",
         options=lista_professores,
-
         required=True,
-
         help=(
             "Selecione um professor cadastrado "
             "na aba PROFESSORES."
@@ -465,42 +429,28 @@ configuracao_colunas = {
     ),
 
     "DISCIPLINA": st.column_config.SelectboxColumn(
-
         "DISCIPLINA",
-
         options=lista_disciplinas,
-
         required=True
     ),
 
     "CARGA HORÁRIA": st.column_config.NumberColumn(
-
         "CARGA HORÁRIA",
-
         min_value=1,
-
         max_value=40,
-
         step=1,
-
         required=True
     ),
 
     "TURMA": st.column_config.SelectboxColumn(
-
         "TURMA",
-
         options=lista_turmas,
-
         required=True
     ),
 
     "TURNO": st.column_config.SelectboxColumn(
-
         "TURNO",
-
         options=lista_turnos,
-
         required=True
     )
 }
@@ -529,7 +479,7 @@ df_editado = st.data_editor(
 
 
 # ============================================================
-# CALCULA A CH EM TEMPO REAL
+# CH EM TEMPO REAL
 # ============================================================
 
 horas_atribuidas = calcular_horas_atribuidas(
@@ -548,7 +498,7 @@ with st.sidebar:
     )
 
     st.caption(
-        "Os dados abaixo vêm da aba PROFESSORES."
+        "Dados carregados da aba PROFESSORES."
     )
 
     if not df_professores.empty:
@@ -558,16 +508,15 @@ with st.sidebar:
         for _, professor_row in df_professores.iterrows():
 
             professor = str(
-                professor_row["PROFESSOR(A)"]
+                professor_row["PROFESSORES"]
             ).strip()
 
             ch_total = pd.to_numeric(
-                professor_row["CH TOTAL"],
+                professor_row["CARGA HORÁRIA"],
                 errors="coerce"
             )
 
             if pd.isna(ch_total):
-
                 ch_total = 0
 
             ch_alocada = horas_atribuidas.get(
@@ -580,20 +529,9 @@ with st.sidebar:
                 - float(ch_alocada)
             )
 
-            percentual = 0
-
-            if ch_total > 0:
-
-                percentual = (
-                    ch_alocada
-                    / ch_total
-                    * 100
-                )
-
-
-            # ----------------------------------------------
+            # ------------------------------------------------
             # STATUS
-            # ----------------------------------------------
+            # ------------------------------------------------
 
             if saldo == 0:
 
@@ -612,10 +550,9 @@ with st.sidebar:
                     f"{int(abs(saldo))}h"
                 )
 
-
             status_lista.append({
 
-                "Professor(a)": professor,
+                "Professor": professor,
 
                 "CH Total": int(ch_total),
 
@@ -626,63 +563,31 @@ with st.sidebar:
                 "Status": status
             })
 
-
         df_status = pd.DataFrame(
             status_lista
         )
 
-
-        # ----------------------------------------------
+        # ----------------------------------------------------
         # TABELA DE STATUS
-        # ----------------------------------------------
+        # ----------------------------------------------------
 
         st.dataframe(
-
             df_status,
-
             use_container_width=True,
-
-            hide_index=True,
-
-            column_config={
-
-                "Professor(a)":
-                    st.column_config.TextColumn(
-                        "Professor(a)"
-                    ),
-
-                "CH Total":
-                    st.column_config.NumberColumn(
-                        "CH Total"
-                    ),
-
-                "Alocada":
-                    st.column_config.NumberColumn(
-                        "Alocada"
-                    ),
-
-                "Saldo":
-                    st.column_config.NumberColumn(
-                        "Saldo"
-                    ),
-
-                "Status":
-                    st.column_config.TextColumn(
-                        "Status"
-                    )
-            }
+            hide_index=True
         )
 
-
-        # ----------------------------------------------
-        # TOTAL GERAL
-        # ----------------------------------------------
+        # ----------------------------------------------------
+        # RESUMO GERAL
+        # ----------------------------------------------------
 
         st.divider()
 
         total_ch_professores = (
             pd.to_numeric(
-                df_professores["CH TOTAL"],
+                df_professores[
+                    "CARGA HORÁRIA"
+                ],
                 errors="coerce"
             )
             .fillna(0)
@@ -697,7 +602,6 @@ with st.sidebar:
             total_ch_professores
             - total_ch_alocada
         )
-
 
         st.metric(
             "CH total a distribuir",
@@ -734,12 +638,14 @@ col1, col2, col3, col4 = st.columns(4)
 
 
 # Total de lançamentos
+
 total_lancamentos = len(
     df_editado
 )
 
 
 # CH distribuída
+
 total_ch_distribuida = (
     pd.to_numeric(
         df_editado["CARGA HORÁRIA"],
@@ -750,28 +656,29 @@ total_ch_distribuida = (
 )
 
 
-# Professores
+# Total de professores
+
 total_professores = len(
     df_professores
 )
 
 
 # Professores excedidos
+
 professores_excedidos = 0
 
 for _, row in df_professores.iterrows():
 
     professor = str(
-        row["PROFESSOR(A)"]
+        row["PROFESSORES"]
     ).strip()
 
     ch_total = pd.to_numeric(
-        row["CH TOTAL"],
+        row["CARGA HORÁRIA"],
         errors="coerce"
     )
 
     if pd.isna(ch_total):
-
         continue
 
     ch_alocada = horas_atribuidas.get(
@@ -817,19 +724,19 @@ with col4:
 
 
 # ============================================================
-# ALERTAS
+# ALERTA DE EXCESSO
 # ============================================================
 
 if professores_excedidos > 0:
 
     st.error(
-        f"🚨 Existem **{professores_excedidos} professor(es)** "
+        f"🚨 Existem {professores_excedidos} professor(es) "
         "com carga horária acima do previsto."
     )
 
 
 # ============================================================
-# PROFESSORES AINDA COM CH A DISTRIBUIR
+# PROFESSORES COM CH PENDENTE
 # ============================================================
 
 professores_pendentes = []
@@ -837,16 +744,15 @@ professores_pendentes = []
 for _, row in df_professores.iterrows():
 
     professor = str(
-        row["PROFESSOR(A)"]
+        row["PROFESSORES"]
     ).strip()
 
     ch_total = pd.to_numeric(
-        row["CH TOTAL"],
+        row["CARGA HORÁRIA"],
         errors="coerce"
     )
 
     if pd.isna(ch_total):
-
         continue
 
     ch_alocada = horas_atribuidas.get(
@@ -854,13 +760,16 @@ for _, row in df_professores.iterrows():
         0
     )
 
-    saldo = ch_total - ch_alocada
+    saldo = (
+        ch_total
+        - ch_alocada
+    )
 
     if saldo > 0:
 
         professores_pendentes.append({
 
-            "Professor(a)": professor,
+            "Professor": professor,
 
             "CH Total": int(ch_total),
 
@@ -887,13 +796,17 @@ if professores_pendentes:
 
 
 # ============================================================
-# BOTÃO PARA ATUALIZAR PROFESSORES
+# BOTÕES
 # ============================================================
 
 st.divider()
 
 col_atualizar, col_salvar = st.columns(2)
 
+
+# ============================================================
+# ATUALIZAR PROFESSORES
+# ============================================================
 
 with col_atualizar:
 
@@ -903,6 +816,8 @@ with col_atualizar:
     ):
 
         carregar_professores.clear()
+
+        carregar_lotacao.clear()
 
         st.rerun()
 
@@ -925,13 +840,12 @@ if salvar:
     try:
 
         # ----------------------------------------------------
-        # Verifica se existem professores desconhecidos
+        # Verifica professores utilizados
         # ----------------------------------------------------
 
         professores_digitados = set(
-
             df_editado[
-                "PROFESSOR(A)"
+                "PROFESSORES"
             ]
             .dropna()
             .astype(str)
@@ -947,7 +861,6 @@ if salvar:
             - professores_cadastrados
         )
 
-
         if professores_invalidos:
 
             nomes = ", ".join(
@@ -959,14 +872,15 @@ if salvar:
             st.error(
                 "Não foi possível salvar porque "
                 "existem professores que não estão "
-                f"cadastrados na aba PROFESSORES: {nomes}"
+                "cadastrados na aba PROFESSORES: "
+                f"{nomes}"
             )
 
             st.stop()
 
 
         # ----------------------------------------------------
-        # Conexão
+        # Conecta ao Google Sheets
         # ----------------------------------------------------
 
         client = conectar_gsheets()
@@ -981,31 +895,29 @@ if salvar:
 
 
         # ----------------------------------------------------
-        # Prepara dados
+        # Prepara os dados
         # ----------------------------------------------------
 
         df_salvar = df_editado.copy()
 
         df_salvar = df_salvar.fillna("")
 
-
-        # Converte CH para número inteiro
-        if "CARGA HORÁRIA" in df_salvar.columns:
-
-            df_salvar["CARGA HORÁRIA"] = (
-                pd.to_numeric(
-                    df_salvar["CARGA HORÁRIA"],
-                    errors="coerce"
-                )
-                .fillna("")
+        df_salvar["CARGA HORÁRIA"] = (
+            pd.to_numeric(
+                df_salvar["CARGA HORÁRIA"],
+                errors="coerce"
             )
+            .fillna("")
+        )
 
 
-        dados_para_salvar = [
-
-            df_salvar.columns.tolist()
-
-        ] + df_salvar.values.tolist()
+        dados_para_salvar = (
+            [
+                df_salvar.columns.tolist()
+            ]
+            +
+            df_salvar.values.tolist()
+        )
 
 
         # ----------------------------------------------------
@@ -1016,7 +928,7 @@ if salvar:
 
 
         # ----------------------------------------------------
-        # Grava os novos dados
+        # Grava os dados
         # ----------------------------------------------------
 
         worksheet.update(
@@ -1026,7 +938,7 @@ if salvar:
 
 
         # ----------------------------------------------------
-        # Atualiza cache
+        # Limpa cache
         # ----------------------------------------------------
 
         carregar_lotacao.clear()
@@ -1039,8 +951,7 @@ if salvar:
         # ----------------------------------------------------
 
         st.success(
-            "✅ Lotação salva com sucesso na "
-            "aba Página1 do Google Sheets!"
+            "✅ Lotação salva com sucesso na aba Página1!"
         )
 
 
