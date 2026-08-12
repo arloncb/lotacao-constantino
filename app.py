@@ -22,7 +22,7 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/10nQG6fYwRKMbgxAGVOl8Ko8DHjC
 # ============================================================
 
 COLUNAS_LOTACAO = [
-    "PROFESSOR(A)",
+    "PROFESSORES",
     "DISCIPLINA",
     "CARGA HORÁRIA",
     "TURMA",
