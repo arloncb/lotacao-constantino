@@ -13,7 +13,7 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/10nQG6fYwRKMbgxAGVOl8Ko8DHjC
 COLUNAS_LOTACAO = ["PROFESSORES", "DISCIPLINA", "CARGA HORÁRIA", "TURMA", "TURNO"]
 
 # ============================================================
-# CONEXÃO BLINDADA
+# CONEXÃO BLINDADA (Lendo direto da raiz do secrets)
 # ============================================================
 @st.cache_resource
 def conectar_gsheets():
@@ -22,8 +22,8 @@ def conectar_gsheets():
         "https://www.googleapis.com/auth/drive"
     ]
     
-    # Extrai o JSON como string e converte para dicionário Python
-    json_str = st.secrets["connections"]["gsheets"]["json_key"]
+    # Lê a string do JSON diretamente da raiz (sem precisar de [connections])
+    json_str = st.secrets["json_key"]
     creds_dict = json.loads(json_str)
     
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
@@ -67,12 +67,9 @@ def carregar_lotacao():
         st.error(f"Erro ao carregar Página1: {e}")
         return pd.DataFrame(columns=COLUNAS_LOTACAO)
 
-# [Mantenha aqui suas listas: lista_disciplinas, lista_turmas, lista_turnos]
 lista_disciplinas = ["Apoio e Orien. de estudos", "Arte", "Biologia", "Ciências", "Ciências Human. e Socie.", "Ciências naturais na Contemporaneidade", "Desenvol. Local", "Ed. Física", "Empresa Pedagógica", "Filosofia", "Física", "Geografia", "História", "Investigação Cien. e Tec.", "Leitura (literatura) e Prod. Textual", "Letram. e rac. Matemático", "Língua Inglesa", "Língua Portuguesa", "Língua Portuguesa - RA", "Literatura Arte e Movimento", "Matemática", "Matemática Geometria", "Matemática-RA", "Química", "Sociologia", "Tecnologia e Cida Digi.", "UC PROFISSIONAL 01", "UC PROFISSIONAL 02", "UC PROFISSIONAL 03"]
 lista_turmas = ["4° A", "5° A", "6° A", "6° B", "6° C", "7° A", "8° A", "9° A", "9° B", "9° C", "9° D", "1° A", "1° B", "2° A", "3° A"]
 lista_turnos = ["Matutino", "Vespertino", "Noturno", "Integral"]
 
 df_professores = carregar_professores()
 df_dados = carregar_lotacao()
-
-# [Continue daqui com seu código de Interface: st.title, st.data_editor, st.button, etc.]
